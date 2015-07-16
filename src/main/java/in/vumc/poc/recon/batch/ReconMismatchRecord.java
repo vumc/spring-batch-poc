@@ -11,7 +11,7 @@ import java.util.Date;
  */
 public class ReconMismatchRecord {
 
-  private String storeId;
+  private String reconId;
   private String registerNumber;
   private String transactionNumber;
   private Date creationDate;
@@ -180,12 +180,12 @@ public class ReconMismatchRecord {
     this.transactionNumber = transactionNumber;
   }
 
-  public String getStoreId() {
-    return storeId;
+  public String getReconId() {
+    return reconId;
   }
 
-  public void setStoreId(String storeId) {
-    this.storeId = storeId;
+  public void setReconId(String reconId) {
+    this.reconId = reconId;
   }
 
   public int getRetryCount() {

@@ -23,7 +23,7 @@ public class ReconMismatchReportProcessor implements ItemProcessor<ReconMismatch
     report.setRetryCount(item.getRetryCount());
     report.setSku(item.getSku());
     report.setStatus(item.getStatus());
-    report.setStoreId(item.getStoreId());
+    report.setStoreId(item.getReconId());
     report.setTenderType(item.getTenderType());
     report.setTraceId(item.getTraceId());
     report.setTransactionDate(item.getCreationDate());

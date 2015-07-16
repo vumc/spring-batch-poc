@@ -16,7 +16,7 @@ public class ReconMismatchRecordRowMapper implements RowMapper<ReconMismatchReco
   public ReconMismatchRecord mapRow(ResultSet rs, int rowNum) throws SQLException {
 
     ReconMismatchRecord row = new ReconMismatchRecord();
-    row.setStoreId(rs.getString("STORE_ID"));
+    row.setReconId(rs.getString("STORE_ID"));
     row.setRegisterNumber(rs.getString("REGISTER_NUMBER"));
     row.setTransactionNumber(rs.getString("TRANSACTION_NUMBER"));
     row.setCreationDate(rs.getDate("CREATION_DATE"));
