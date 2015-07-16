@@ -49,8 +49,6 @@
         <batch:chunk reader="reconStagingRecordsReader"
           writer="reconCreateBatchRecordsWriter" commit-interval="${recon.batch.job.commit.interval}" />
       </batch:tasklet>
-      <!-- <batch:listeners> <batch:listener ref="jobProcessDateListener"/> 
-        </batch:listeners> -->
     </batch:step>
     <!-- -->
     <batch:step id="recon-process-mistach-records-step" next="recon-report-generation-step">
@@ -59,8 +57,6 @@
           processor="reconMismatchRecordProcessor" writer="reconUpdateBatchRecordsWriter"
           commit-interval="${recon.batch.job.commit.interval}" />
       </batch:tasklet>
-      <!-- <batch:listeners> <batch:listener ref="jobProcessDateListener"/> 
-        </batch:listeners> -->
     </batch:step>
 
     <!-- next="recon-process-deadqueue-step" -->
@@ -75,7 +71,7 @@
       </batch:listeners>
     </batch:step>
 
-  <!-- <batch:step id="recon-process-deadqueue-step" next="recon-email-step">
+  <batch:step id="recon-process-deadqueue-step" next="recon-email-step">
     <batch:tasklet>
       <batch:chunk reader="reconBatchRecordsReader" writer="reconDeadQueueWriter"
         commit-interval="${recon.batch.job.commit.interval}" />
@@ -89,7 +85,7 @@
       <batch:chunk reader="reconAttachmentReader" writer="reconSendEmailWriter"
         commit-interval="${recon.batch.job.commit.interval}" />
     </batch:tasklet>
-  </batch:step> -->
+  </batch:step>
 
   </batch:job>
 
@@ -101,12 +97,12 @@
     <property name="sql">
       <value>
             <![CDATA[
-              select t.store_id, t.register_number, t.transaction_number,
+              select t.recon_id, t.register_number, t.transaction_number,
                 t.creation_date,  t.account_number, t.subscriber_number, t.email_address,
                 t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
-                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
-                t.store_state, t.tender_type,  b.status,  b.retry_count, b.exec_duration
-              from rpt_recon_doc_mismatch t LEFT OUTER JOIN rpt_recon_doc_mismatch_batch b
+                t.application_name, t.dealer_code, t.recon_city, t.r_object_id,
+                t.recon_state, t.tender_type,  b.status,  b.retry_count, b.exec_duration
+              from reconlog_mismatch t LEFT OUTER JOIN reconlog_mismatch_batch b
               on t.trace_id = b.trace_id
               where b.trace_id is null
             ]]>
@@ -124,7 +120,7 @@
     <property name="sql">
       <value>
             <![CDATA[
-              update rpt_recon_doc_mismatch_batch 
+              update reconlog_mismatch_batch 
               set status = :status,  retry_count = :retryCount, exec_duration = :executionDuration
               where trace_id = :traceId
             ]]>
@@ -143,12 +139,12 @@
     <property name="sql">
       <value>
             <![CDATA[
-              select t.store_id, t.register_number, t.transaction_number,
+              select t.recon_id, t.register_number, t.transaction_number,
                 t.creation_date,  t.account_number, t.subscriber_number, t.email_address,
                 t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
-                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
-                t.store_state, t.tender_type,  t.status,  t.retry_count, t.exec_duration
-              from rpt_recon_doc_mismatch_batch t 
+                t.application_name, t.dealer_code, t.recon_city, t.r_object_id,
+                t.recon_state, t.tender_type,  t.status,  t.retry_count, t.exec_duration
+              from reconlog_mismatch_batch t 
             ]]>
       </value>
     </property>
@@ -164,13 +160,13 @@
     <property name="sql">
       <value>
             <![CDATA[
-              insert into rpt_recon_doc_mismatch_batch
-              (store_id,  register_number,  transaction_number,  creation_date,  account_number, subscriber_number,
+              insert into reconlog_mismatch_batch
+              (recon_id,  register_number,  transaction_number,  creation_date,  account_number, subscriber_number,
                 email_address,  customer_f_name,   customer_l_name,  sku,  trace_id,  request_xml,  application_name,
-                dealer_code,  store_city,  store_state,  r_object_id,  tender_type, status, retry_count, exec_duration)
-              values (:storeId, :registerNumber, :transactionNumber, :creationDate, :accountNumber, :subsriberNumber, 
+                dealer_code,  recon_city,  recon_state,  r_object_id,  tender_type, status, retry_count, exec_duration)
+              values (:reconId, :registerNumber, :transactionNumber, :creationDate, :accountNumber, :subsriberNumber, 
                :emailAddress, :customerFirstName, :customerLastName, :sku, :traceId, :requestXml, :applicationName,
-               :dealerCode, :storeCity, :storeState, :refObjectId, :tenderType, :status, :retryCount, :executionDuration)
+               :dealerCode, :reconCity, :reconState, :refObjectId, :tenderType, :status, :retryCount, :executionDuration)
             ]]>
       </value>
     </property>
@@ -186,7 +182,7 @@
     class="org.springframework.batch.item.database.JdbcCursorItemReader"
     scope="step">
     <property name="dataSource" ref="dataSource" />
-    <property name="sql" value="select count(*) from rpt_recon_doc_mismatch" />
+    <property name="sql" value="select count(*) from reconlog_mismatch" />
   </bean>
 
   <bean id="reconBatchReportDataReader"
@@ -196,12 +192,12 @@
     <property name="sql">
       <value>
             <![CDATA[
-              select t.store_id,  t.transaction_number,
+              select t.recon_id,  t.transaction_number,
                 t.creation_date,  t.account_number , t.subscriber_number, t.email_address,
                 t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
-                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
-                t.store_state, t.tender_type,  t.status,  t.retry_count
-              from rpt_recon_doc_mismatch_batch t       
+                t.application_name, t.dealer_code, t.recon_city, t.r_object_id,
+                t.recon_state, t.tender_type,  t.status,  t.retry_count
+              from reconlog_mismatch_batch t       
             ]]>
       </value>
     </property>
@@ -225,7 +221,7 @@
           <bean
             class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">
             <property name="names"
-              value="traceId, status, storeId, transactionId, ban, msisdn, email, customerName, transactionDate, sku, tenderType" />
+              value="traceId, status, reconId, transactionId, ban, msisdn, email, customerName, transactionDate, sku, tenderType" />
           </bean>
         </property>
       </bean>
@@ -241,7 +237,7 @@
   </bean>
 
 
- <!--  <bean id="reconAttachmentReader"
+  <bean id="reconAttachmentReader"
     class="org.springframework.batch.item.database.JdbcCursorItemReader"
     scope="step">
     <property name="dataSource" ref="dataSource" />
@@ -271,6 +267,6 @@
         </property>
       </bean>
     </property>
-  </bean> -->
+  </bean>
 
 </beans>
