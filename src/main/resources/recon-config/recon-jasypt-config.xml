@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+  xmlns:util="http://www.springframework.org/schema/util"
+  xmlns:encryption="http://www.jasypt.org/schema/encryption"
+  xsi:schemaLocation="http://www.springframework.org/schema/beans
+                           http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+                           http://www.springframework.org/schema/context
+                           http://www.springframework.org/schema/context/spring-context-3.2.xsd
+                           http://www.springframework.org/schema/util
+                           http://www.springframework.org/schema/util/spring-util-3.2.xsd
+                           http://www.jasypt.org/schema/encryption
+                           http://www.jasypt.org/schema/encryption/jasypt-spring31-encryption-1.xsd">
+
+<!-- encrypt input="TYPE_YOUR_PASSWORD" algorithm="PBEWithMD5AndTripleDES" password="TYPE_ENV_PROPERTY_NAME" verbose=false -->
+  <encryption:encryptor-config id="reconEnvironmentStringPBEConfig"
+    algorithm="PBEWithMD5AndTripleDES"  pool-size-env-name="RECON_NO_OF_PROCESSORS_ENV"
+    password-env-name="RECON_EMAIL_ENC_PWD_ENV" />
+
+  <!-- <encryption:encryptor-config id="reconEnvironmentStringPBEConfig"
+    algorithm="PBEWithMD5AndTripleDES" key-obtention-iterations="10000"
+    password-env-name="RECON_EMAIL_ENC_PWD_ENV" /> -->
+    
+  <encryption:string-encryptor id="reconStandardPBEStringEncryptor"
+    config-bean="reconEnvironmentStringPBEConfig" />
+
+  <encryption:encryptable-property-placeholder  encryptor="reconStandardPBEStringEncryptor"  
+  location="classpath:recon-${RECON_ENV}.properties"/>
+
+</beans>

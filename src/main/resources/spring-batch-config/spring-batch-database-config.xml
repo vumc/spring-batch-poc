@@ -1,0 +1,79 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:jee="http://www.springframework.org/schema/jee"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+        http://www.springframework.org/schema/jee
+        http://www.springframework.org/schema/jee/spring-jee.xsd
+		http://www.springframework.org/schema/jdbc 
+		http://www.springframework.org/schema/jdbc/spring-jdbc-3.2.xsd">
+          
+    <!-- Set up or detect a System property called "RECON_DB_ENV" used to construct a properties file on the classpath.  The default is "hsql".  -->
+    <!-- <bean id="environment"
+        class="org.springframework.batch.support.SystemPropertyInitializer">
+        <property name="defaultValue" value="oracle"/>
+        <property name="keyName" value="RECON_DB_ENV"/>
+    </bean> -->
+    
+    <!--  Use this to set additional properties on beans at run time -->
+    <!-- <bean id="overrideProperties" class="org.springframework.beans.factory.config.PropertyOverrideConfigurer"
+        depends-on="environment">
+        <property name="location" value="classpath:/batch-${RECON_DB_ENV}.properties" />
+         Allow system properties (-D) to override those from file 
+        <property name="localOverride" value="true" />
+        <property name="properties">
+            <bean class="java.lang.System" factory-method="getProperties" />
+        </property>
+        <property name="ignoreInvalidKeys" value="true" />
+        <property name="order" value="2" />
+    </bean> -->
+    <!-- <bean id="placeholderProperties" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer"
+        depends-on="environment">
+        <property name="location" value="classpath:batch-${RECON_DB_ENV}.properties" />
+        <property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE" />
+        <property name="ignoreUnresolvablePlaceholders" value="true" />
+        <property name="order" value="1" />
+    </bean> -->
+                
+    <!-- <jee:jndi-lookup id="dataSource" jndi-name="recon.ds"/> -->
+   
+
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="${recon.batch.jdbc.driver}" />
+        <property name="url" value="${recon.batch.jdbc.url}" />
+        <property name="username" value="${recon.batch.jdbc.user}" />
+        <property name="password" value="${recon.batch.jdbc.password}" />
+        <property name="maxActive" value="${recon.batch.jdbc.pool.size}"/>
+        <property name="validationQuery" value="${recon.batch.jdbc.validationQuery}"/>
+        <property name="testWhileIdle" value="${recon.batch.jdbc.testWhileIdle}"/>
+    </bean>
+
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager" lazy-init="true">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+
+
+    <!-- <bean id="sequenceIncrementerParent" class="${recon.batch.database.incrementer.class}" abstract="true">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+
+    <bean id="columnIncrementerParent" class="${recon.batch.database.incrementer.class}" abstract="true" parent="sequenceIncrementerParent">
+        <property name="columnName" value="ID" />
+    </bean>
+
+    <bean id="incrementerParent" parent="${recon.batch.database.incrementer.parent}">
+        <property name="incrementerName" value="DUMMY"/>
+    </bean> -->
+
+    <!-- <bean id="lobHandler" class="${recon.batch.lob.handler.class}"/> -->
+    <bean id="lobHandler" class="org.springframework.jdbc.support.lob.OracleLobHandler" />
+
+    <!--  Initialise the database before every test case: -->
+    <!-- <jdbc:initialize-database data-source="dataSource">
+        <jdbc:script location="${recon.batch.drop.script}"/>
+        <jdbc:script location="${recon.batch.schema.script}"/>
+        <jdbc:script location="${recon.batch.business.schema.script}"/>
+    </jdbc:initialize-database> -->
+    
+</beans>

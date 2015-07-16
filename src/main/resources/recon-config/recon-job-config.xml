@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+  xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+  xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		http://www.springframework.org/schema/context 
+		http://www.springframework.org/schema/context/spring-context-3.2.xsd">
+
+  <bean id="reconMismatchRecord"
+    class="in.vumc.recon.batch.ReconDocumentumMismatchRecord"
+    scope="prototype" />
+
+  <bean id="reconReportProcessor"
+    class="in.vumc.recon.batch.report.ReconDocumentumMismatchReportProcessor" />
+
+  <bean id="reconMiddlewareService"
+    class="in.vumc.recon.batch.middleware.ReconMiddlewareServiceImpl" />
+
+  <bean id="reconMismatchRecordProcessor"
+    class="in.vumc.recon.batch.ReconDocumentumMismatchRecordProcessor">
+    <property name="reconMiddlewareService" ref="reconMiddlewareService" />
+    <property name="maxRetryAttemptCount" value="${recon.batch.job.retry.attempt.max}" />
+    <property name="reconServiceUrl" value="${recon.middleware.service.url}" />
+  </bean>
+
+
+  <bean id="reconSendEmailWriter"
+    class="in.vumc.recon.batch.mail.ReconDocumentumMismatchRecordSendEmailWriter "/>
+    
+  <bean id="jobProcessDateListener"
+    class="org.springframework.batch.core.listener.ExecutionContextPromotionListener">
+    <property name="keys" value="jobProcessDate" />
+  </bean>
+
+  <bean id="reconMismatchReportListListener"
+    class="org.springframework.batch.core.listener.ExecutionContextPromotionListener">
+    <property name="keys" value="reconMismatchReportList" />
+  </bean>
+
+  <!-- Definition of Recon-Job and the steps -->
+  <batch:job id="recon-job" restartable="false">
+    <batch:step id="recon-populate-mistach-records-step" next="recon-process-mistach-records-step">
+      <batch:tasklet>
+        <batch:chunk reader="reconStagingRecordsReader"
+          writer="reconCreateBatchRecordsWriter" commit-interval="${recon.batch.job.commit.interval}" />
+      </batch:tasklet>
+      <!-- <batch:listeners> <batch:listener ref="jobProcessDateListener"/> 
+        </batch:listeners> -->
+    </batch:step>
+    <!-- -->
+    <batch:step id="recon-process-mistach-records-step" next="recon-report-generation-step">
+      <batch:tasklet>
+        <batch:chunk reader="reconBatchRecordsReader"
+          processor="reconMismatchRecordProcessor" writer="reconUpdateBatchRecordsWriter"
+          commit-interval="${recon.batch.job.commit.interval}" />
+      </batch:tasklet>
+      <!-- <batch:listeners> <batch:listener ref="jobProcessDateListener"/> 
+        </batch:listeners> -->
+    </batch:step>
+
+    <!-- next="recon-process-deadqueue-step" -->
+    <batch:step id="recon-report-generation-step">
+      <batch:tasklet>
+        <batch:chunk reader="reconBatchRecordsReader"
+          processor="reconReportProcessor" writer="reconReportWriter"
+          commit-interval="${recon.batch.job.commit.interval}" />
+      </batch:tasklet>
+      <batch:listeners>
+        <batch:listener ref="reconMismatchReportListListener" />
+      </batch:listeners>
+    </batch:step>
+
+  <!-- <batch:step id="recon-process-deadqueue-step" next="recon-email-step">
+    <batch:tasklet>
+      <batch:chunk reader="reconBatchRecordsReader" writer="reconDeadQueueWriter"
+        commit-interval="${recon.batch.job.commit.interval}" />
+    </batch:tasklet>
+    <batch:listeners>
+      <batch:listener ref="reconMismatchReportListListener" />
+    </batch:listeners>
+  </batch:step>
+  <batch:step id="recon-email-step">
+    <batch:tasklet>
+      <batch:chunk reader="reconAttachmentReader" writer="reconSendEmailWriter"
+        commit-interval="${recon.batch.job.commit.interval}" />
+    </batch:tasklet>
+  </batch:step> -->
+
+  </batch:job>
+
+
+  <bean id="reconStagingRecordsReader"
+    class="org.springframework.batch.item.database.JdbcCursorItemReader"
+    scope="step">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql">
+      <value>
+            <![CDATA[
+              select t.store_id, t.register_number, t.transaction_number,
+                t.creation_date,  t.account_number, t.subscriber_number, t.email_address,
+                t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
+                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
+                t.store_state, t.tender_type,  b.status,  b.retry_count, b.exec_duration
+              from rpt_recon_doc_mismatch t LEFT OUTER JOIN rpt_recon_doc_mismatch_batch b
+              on t.trace_id = b.trace_id
+              where b.trace_id is null
+            ]]>
+      </value>
+    </property>
+    <property name="rowMapper">
+      <bean
+        class="in.vumc.recon.batch.ReconDocumentumMismatchRecordRowMapper" />
+    </property>
+  </bean>
+
+  <bean id="reconUpdateBatchRecordsWriter"
+    class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql">
+      <value>
+            <![CDATA[
+              update rpt_recon_doc_mismatch_batch 
+              set status = :status,  retry_count = :retryCount, exec_duration = :executionDuration
+              where trace_id = :traceId
+            ]]>
+      </value>
+    </property>
+    <property name="itemSqlParameterSourceProvider">
+      <bean
+        class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+    </property>
+  </bean>
+
+  <bean id="reconBatchRecordsReader"
+    class="org.springframework.batch.item.database.JdbcCursorItemReader"
+    scope="step">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql">
+      <value>
+            <![CDATA[
+              select t.store_id, t.register_number, t.transaction_number,
+                t.creation_date,  t.account_number, t.subscriber_number, t.email_address,
+                t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
+                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
+                t.store_state, t.tender_type,  t.status,  t.retry_count, t.exec_duration
+              from rpt_recon_doc_mismatch_batch t 
+            ]]>
+      </value>
+    </property>
+    <property name="rowMapper">
+      <bean
+        class="in.vumc.recon.batch.ReconDocumentumMismatchRecordRowMapper" />
+    </property>
+  </bean>
+  
+    <bean id="reconCreateBatchRecordsWriter"
+    class="org.springframework.batch.item.database.JdbcBatchItemWriter">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql">
+      <value>
+            <![CDATA[
+              insert into rpt_recon_doc_mismatch_batch
+              (store_id,  register_number,  transaction_number,  creation_date,  account_number, subscriber_number,
+                email_address,  customer_f_name,   customer_l_name,  sku,  trace_id,  request_xml,  application_name,
+                dealer_code,  store_city,  store_state,  r_object_id,  tender_type, status, retry_count, exec_duration)
+              values (:storeId, :registerNumber, :transactionNumber, :creationDate, :accountNumber, :subsriberNumber, 
+               :emailAddress, :customerFirstName, :customerLastName, :sku, :traceId, :requestXml, :applicationName,
+               :dealerCode, :storeCity, :storeState, :refObjectId, :tenderType, :status, :retryCount, :executionDuration)
+            ]]>
+      </value>
+    </property>
+    <!-- It will take care matching between object property and sql name 
+      parameter -->
+    <property name="itemSqlParameterSourceProvider">
+      <bean
+        class="org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider" />
+    </property>
+  </bean>
+  
+  <bean id="dummyReader"
+    class="org.springframework.batch.item.database.JdbcCursorItemReader"
+    scope="step">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql" value="select count(*) from rpt_recon_doc_mismatch" />
+  </bean>
+
+  <bean id="reconBatchReportDataReader"
+    class="org.springframework.batch.item.database.JdbcCursorItemReader"
+    scope="step">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql">
+      <value>
+            <![CDATA[
+              select t.store_id,  t.transaction_number,
+                t.creation_date,  t.account_number , t.subscriber_number, t.email_address,
+                t.customer_f_name,  t.customer_l_name, t.sku,  t.trace_id, t.request_xml,
+                t.application_name, t.dealer_code, t.store_city, t.r_object_id,
+                t.store_state, t.tender_type,  t.status,  t.retry_count
+              from rpt_recon_doc_mismatch_batch t       
+            ]]>
+      </value>
+    </property>
+    <property name="rowMapper">
+      <bean
+        class="in.vumc.recon.batch.ReconDocumentumMismatchRecordRowMapper" />
+    </property>
+  </bean>
+
+  <bean id="reconCsvFileWriter" class="org.springframework.batch.item.file.FlatFileItemWriter">
+    <!-- <property name="resource" value="file:${recon.report.filepath}${recon.report.filename}-#{jobParameters['time']}.csv" 
+      /> -->
+    <property name="resource"
+      value="file:${recon.report.filepath}${recon.report.filename}.csv" />
+    <property name="shouldDeleteIfExists" value="true" />
+    <property name="lineAggregator">
+      <bean
+        class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+        <property name="delimiter" value="," />
+        <property name="fieldExtractor">
+          <bean
+            class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">
+            <property name="names"
+              value="traceId, status, storeId, transactionId, ban, msisdn, email, customerName, transactionDate, sku, tenderType" />
+          </bean>
+        </property>
+      </bean>
+    </property>
+    <property name="headerCallback" ref="reconReportWriter" />
+    <property name="footerCallback" ref="reconReportWriter" />
+  </bean>
+
+  <bean id="reconReportWriter"
+    class="in.vumc.recon.batch.report.ReconDocumentumMismatchReportWriter">
+    <property name="delegate" ref="reconCsvFileWriter" />
+    <property name="reconBatchJobName" value="${recon.batch.job.name}" />
+  </bean>
+
+
+ <!--  <bean id="reconAttachmentReader"
+    class="org.springframework.batch.item.database.JdbcCursorItemReader"
+    scope="step">
+    <property name="dataSource" ref="dataSource" />
+    <property name="sql"
+      value="SELECT TRACE_ID, STATUS, JOB_RUN_DATE, PRIOR_STATUS FROM TRACELOG_STG" />
+    <property name="rowMapper">
+      <bean
+        class="in.vumc.recon.batch.ReconDocumentumMismatchRecordRowMapper" />
+    </property>
+  </bean>
+
+  <bean id="reconAttachmentWriter" class="org.springframework.batch.item.file.FlatFileItemWriter">
+    <property name="resource"
+      value="file:${recon.report.filepath}${recon.report.filename}" />
+    <property name="shouldDeleteIfExists" value="true" />
+
+    <property name="lineAggregator">
+      <bean
+        class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+        <property name="delimiter" value="," />
+        <property name="fieldExtractor">
+          <bean
+            class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">
+            <property name="names"
+              value="traceId, status, priorStatus, jobRunDate" />
+          </bean>
+        </property>
+      </bean>
+    </property>
+  </bean> -->
+
+</beans>
